@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vice City Puddle Lab — SSR vs. Ray Tracing &amp; 16.67 ms Frame Budget | NextGen Systems Lab</title>
+  <meta name="description" content="Interactive GPU graphics lab: tilt the camera down and watch Screen-Space Reflections vanish the millisecond the neon sign leaves the screen, while a 2-level BVH ray hits it off-screen." />
+
+  <!-- Open Graph / Twitter Card for Discord, X, Reddit, LinkedIn & Slack previews -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Interactive GPU Lab: Why Game Reflections Vanish When You Look Down" />
+  <meta property="og:description" content="Tilt the Vice City camera live to break Screen-Space Reflections, trace 2-level BVH rays off-screen, and balance a 16.67 ms (60 FPS) GPU frame budget." />
+  <meta property="og:site_name" content="NextGen Systems Lab" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Tilt the Vice City Puddle — SSR vs. Ray Tracing Live Lab" />
+  <meta name="twitter:description" content="Drag the camera pitch down and watch Screen-Space Reflections vanish in real time while hardware BVH rays still hit the off-screen neon sign." />
+  <meta name="theme-color" content="#070B14" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070B14'/%3E%3Cpolygon points='32,14 48,32 32,50 16,32' fill='%23102C4E' stroke='%23E2F2FE' stroke-width='2.5'/%3E%3Cline x1='6' y1='35' x2='32' y2='32' stroke='%23F8FAFC' stroke-width='3'/%3E%3Cline x1='32' y1='32' x2='58' y2='22' stroke='%2338BDF8' stroke-width='3.5'/%3E%3Cline x1='32' y1='32' x2='58' y2='42' stroke='%23FF5500' stroke-width='3.5'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23FFFFFF'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <div>
+        <div class="brand-kicker">NEXTGEN SYSTEMS LAB // INTERACTIVE GPU SIMULATOR</div>
+        <h1>Why Game Reflections Vanish When You Look Down</h1>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn btn-primary" href="https://youtu.be/j2P7taYN5ww" target="_blank" rel="noopener noreferrer">
+        <span aria-hidden="true">&#9654;</span> Watch Full 7-Min Breakdown
+      </a>
+      <a class="btn btn-ghost" href="https://youtu.be/qaukQgnOY_A" target="_blank" rel="noopener noreferrer">
+        51s Puddle Short
+      </a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Quick Scenario Presets -->
+    <section class="preset-bar" aria-label="Quick demonstration presets">
+      <span class="preset-label">PRESETS:</span>
+      <button class="chip active" data-preset="puddle-break">1. Break the Puddle (Tilt Down)</button>
+      <button class="chip" data-preset="puddle-intact">2. Sign In Frame (SSR Works)</button>
+      <button class="chip" data-preset="cpu-idle">3. CPU Bottleneck (GPU Idle!)</button>
+      <button class="chip" data-preset="4k-meltdown">4. Native 4K + Path Tracing Meltdown</button>
+      <button class="chip" data-preset="balanced-60">5. Balanced 60 FPS (16.67 ms)</button>
+      <button class="chip chip-accent" id="btnAutoTilt" aria-pressed="false">&#9654; Auto-Tilt Camera</button>
+    </section>
+
+    <!-- Primary Twin Interactive Viewports -->
+    <section class="stage-grid">
+      <!-- LEFT: Live Vice City Camera Viewport -->
+      <article class="panel viewport-panel">
+        <div class="panel-head">
+          <div>
+            <span class="badge badge-cyan">LIVE CAMERA VIEWPORT</span>
+            <h2>Vice City Puddle — SSR vs. Ray Tracing</h2>
+          </div>
+          <div class="mode-switch" role="group" aria-label="Viewport comparison mode">
+            <button class="seg-btn" data-view="ssr">SSR Only</button>
+            <button class="seg-btn active" data-view="split">Split Curtain</button>
+            <button class="seg-btn" data-view="rt">Ray Traced</button>
+          </div>
+        </div>
+
+        <div class="canvas-wrap" id="viewportWrap">
+          <canvas id="viewportCanvas" width="960" height="580" aria-label="Interactive Vice City street puddle reflection simulator"></canvas>
+          <div class="drag-hint" id="dragHint">Drag up/down to tilt camera &bull; Drag divider left/right</div>
+        </div>
+
+        <div class="controls-row">
+          <div class="control-block control-pitch">
+            <div class="control-meta">
+              <label for="pitchSlider">Camera Pitch (Tilt Down)</label>
+              <span class="readout" id="pitchReadout">0.0&deg; (LEVEL)</span>
+            </div>
+            <input type="range" id="pitchSlider" min="-6" max="32" step="0.2" value="19.5" />
+            <div class="tick-labels">
+              <span>-6&deg; Look Up</span>
+              <span class="tick-warn">~14&deg; Sign Exits Screen</span>
+              <span>+32&deg; Look Down</span>
+            </div>
+          </div>
+
+          <div class="control-block control-split">
+            <div class="control-meta">
+              <label for="splitSlider">Split Curtain Position</label>
+              <span class="readout" id="splitReadout">50%</span>
+            </div>
+            <input type="range" id="splitSlider" min="8" max="92" step="1" value="50" />
+            <div class="toggle-inline">
+              <label class="switch">
+                <input type="checkbox" id="denoiserToggle" checked />
+                <span>RT Spatiotemporal Denoiser (NRD / ReBLUR)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- RIGHT: X-Ray Side-View Frustum & 2-Level BVH Visualizer -->
+      <article class="panel xray-panel">
+        <div class="panel-head">
+          <div>
+            <span class="badge badge-orange">SIDE-VIEW X-RAY</span>
+            <h2>Screen Buffer vs. 2-Level BVH Ray Hit</h2>
+          </div>
+          <span class="status-pill" id="ssrStatusPill">SSR MISS // OFF-SCREEN</span>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="xrayCanvas" width="760" height="580" aria-label="Side view camera frustum and 2-level BVH ray intersection diagram"></canvas>
+        </div>
+
+        <div class="bvh-telemetry" id="bvhTelemetry">
+          <div class="tel-card">
+            <div class="tel-k">NEON SIGN IN SCREEN BUFFER</div>
+            <div class="tel-v" id="telSignVisible">NO (CLIPPED ABOVE y = 0)</div>
+          </div>
+          <div class="tel-card">
+            <div class="tel-k">SSR RAY MARCH RESULT</div>
+            <div class="tel-v" id="telSsrResult">MISS &rarr; FALLBACK GREY</div>
+          </div>
+          <div class="tel-card">
+            <div class="tel-k">HARDWARE RT (TLAS &rarr; BLAS)</div>
+            <div class="tel-v tel-ok" id="telRtResult">HIT: HOTEL_NEON_SIGN (t = 18.4 m)</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- Bottom Lab: Live 16.67 ms (60 FPS) 4-Wall Frame Budget Simulator -->
+    <section class="panel budget-panel">
+      <div class="panel-head budget-head">
+        <div>
+          <span class="badge badge-amber">THE 16.67 ms CLOCK (60 FPS)</span>
+          <h2>4 Hardware Walls — Live Frame-Budget Simulator</h2>
+        </div>
+        <div class="fps-cluster">
+          <div class="metric-box">
+            <span class="metric-label">FRAME TIME</span>
+            <span class="metric-val" id="frameTimeVal">15.40 ms</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">ESTIMATED FPS</span>
+            <span class="metric-val" id="fpsVal">64.9 FPS</span>
+          </div>
+          <div class="budget-pill ok" id="budgetStatusPill">60 FPS LOCKED</div>
+        </div>
+      </div>
+
+      <!-- CPU + GPU Timeline Bar Canvas -->
+      <div class="timeline-wrap">
+        <canvas id="timelineCanvas" width="1440" height="190" aria-label="CPU and GPU 16.67 millisecond frame timeline chart"></canvas>
+      </div>
+
+      <!-- 4 Hardware Wall Controls -->
+      <div class="walls-grid">
+        <div class="wall-card">
+          <div class="wall-head">
+            <span class="wall-num">WALL 1</span>
+            <h3>VRAM &amp; Texture Streaming</h3>
+          </div>
+          <label class="field-label" for="streamingSelect">Storage Pipeline</label>
+          <select id="streamingSelect">
+            <option value="directstorage" selected>DirectStorage + GDeflate (GPU Decompress)</option>
+            <option value="pcie_cpu">Legacy CPU Decompress over PCIe</option>
+            <option value="vram_spill">8 GB VRAM Spill (PCIe Stutter)</option>
+          </select>
+          <p class="wall-note" id="wall1Note">Streaming mipmaps directly into VRAM keeps stalls near zero.</p>
+        </div>
+
+        <div class="wall-card">
+          <div class="wall-head">
+            <span class="wall-num">WALL 2</span>
+            <h3>Crowds &amp; CPU Draw Calls</h3>
+          </div>
+          <div class="control-meta">
+            <label class="field-label" for="crowdSlider">City Crowd &amp; Traffic</label>
+            <span class="readout" id="crowdReadout">High (2,400 agents)</span>
+          </div>
+          <input type="range" id="crowdSlider" min="1" max="4" step="1" value="3" />
+          <label class="switch compact">
+            <input type="checkbox" id="indirectToggle" checked />
+            <span>D3D12 ExecuteIndirect (GPU-Driven)</span>
+          </label>
+          <p class="wall-note" id="wall2Note">GPU builds its own draw list so the CPU finishes before the deadline.</p>
+        </div>
+
+        <div class="wall-card">
+          <div class="wall-head">
+            <span class="wall-num">WALL 3</span>
+            <h3>Reflections &amp; Lighting</h3>
+          </div>
+          <label class="field-label" for="reflSelect">Reflection Engine</label>
+          <select id="reflSelect">
+            <option value="ssr">Screen-Space Reflections (SSR — Cheap, Breaks on Tilt)</option>
+            <option value="rt_1spp" selected>Hardware RT Reflections (1 SPP + Denoiser)</option>
+            <option value="path_traced">Full Multi-Bounce Path Tracing</option>
+          </select>
+          <p class="wall-note" id="wall3Note">Hardware 2-level BVH hits off-screen geometry; denoiser cleans 1-SPP noise.</p>
+        </div>
+
+        <div class="wall-card">
+          <div class="wall-head">
+            <span class="wall-num">WALL 4</span>
+            <h3>4K Pixel Math &amp; Upscaling</h3>
+          </div>
+          <label class="field-label" for="upscaleSelect">Internal Render Resolution</label>
+          <select id="upscaleSelect">
+            <option value="native_4k">Native 4K (3840&times;2160 — 8.29M px / frame)</option>
+            <option value="upscaled_1440" selected>1440p &rarr; 4K Temporal Upscale (DLSS / FSR / TSR)</option>
+            <option value="upscaled_1080">1080p &rarr; 4K Performance (25% pixels)</option>
+          </select>
+          <p class="wall-note" id="wall4Note">Reconstructs crisp 4K detail from 3.69M shaded pixels using motion vectors.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div>
+        <strong>Illustrative Architecture Simulator</strong> &mdash; Built as the interactive companion to
+        <a href="https://youtu.be/j2P7taYN5ww" target="_blank" rel="noopener noreferrer"><em>How GTA 6-Scale Cities Actually Fit Inside a GPU</em></a>
+        by <strong>NextGen Systems Lab</strong> (<code>@nextgensystemslab</code>). Frame timings are conceptual visualizations of public GPU/DirectX/DXR architecture principles, not measured GTA 6 gameplay benchmarks.
+      </div>
+      <div class="footer-links">
+        <a href="https://youtu.be/j2P7taYN5ww" target="_blank" rel="noopener noreferrer">Full Episode</a>
+        <span>&middot;</span>
+        <a href="https://youtu.be/qaukQgnOY_A" target="_blank" rel="noopener noreferrer">SSR Puddle Short</a>
+      </div>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

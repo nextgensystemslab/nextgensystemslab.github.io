@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NextGen Systems Lab — Interactive GPU &amp; Silicon Labs</title>
+  <meta name="description" content="Playable browser-based GPU, rendering, and silicon architecture simulators built as interactive companions to NextGen Systems Lab videos." />
+  <meta property="og:title" content="NextGen Systems Lab — Interactive GPU &amp; Silicon Labs" />
+  <meta property="og:description" content="Interactive browser simulators for every NextGen Systems Lab deep dive. Tilt the Vice City puddle live, trace 2-level BVH rays, and test a 16.67 ms GPU frame budget." />
+  <meta name="theme-color" content="#070B14" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070B14'/%3E%3Cpolygon points='32,14 48,32 32,50 16,32' fill='%23102C4E' stroke='%23E2F2FE' stroke-width='2.5'/%3E%3Cline x1='6' y1='35' x2='32' y2='32' stroke='%23F8FAFC' stroke-width='3'/%3E%3Cline x1='32' y1='32' x2='58' y2='22' stroke='%2338BDF8' stroke-width='3.5'/%3E%3Cline x1='32' y1='32' x2='58' y2='42' stroke='%23FF5500' stroke-width='3.5'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23FFFFFF'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: #0c1322;
+      --border: #1e2d48;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --cyan: #38bdf8;
+      --pink: #f43f5e;
+      --green: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 0%, #12203b 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+    .kicker {
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 900;
+      letter-spacing: -0.025em;
+    }
+    .lead {
+      margin: 12px 0 34px;
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 660px;
+      line-height: 1.55;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .card.live {
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+    .pill {
+      align-self: flex-start;
+      font-family: Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.1px;
+      padding: 4px 9px;
+      border-radius: 999px;
+    }
+    .pill.live { background: rgba(52, 211, 153, 0.16); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.45); }
+    .pill.soon { background: rgba(148, 163, 184, 0.12); color: var(--muted); border: 1px solid #2b3c5c; }
+    .card h2 { margin: 0; font-size: 20px; font-weight: 800; }
+    .card p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; flex: 1; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      color: #04101d;
+    }
+    .btn-yt {
+      background: rgba(244, 63, 94, 0.14);
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      color: #fda4af;
+    }
+    footer {
+      margin-top: 42px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="kicker">NEXTGEN SYSTEMS LAB // INTERACTIVE COMPANION HUB</div>
+    <h1>Playable GPU &amp; Silicon Simulators</h1>
+    <p class="lead">
+      Every flagship deep dive on <strong>NextGen Systems Lab</strong> ships with a zero-install interactive browser lab so you can break the rendering pipelines and hardware limits yourself.
+    </p>
+
+    <section class="grid">
+      <article class="card live">
+        <span class="pill live">EPISODE #1 // LIVE</span>
+        <h2>Vice City Puddle Lab: SSR vs. Ray Tracing &amp; 16.67 ms Budget</h2>
+        <p>
+          Tilt the camera down to watch Screen-Space Reflections vanish the exact millisecond the neon sign exits the top screen edge — while a hardware 2-level BVH ray hits it off-screen. Includes a live 4-wall CPU/GPU 60 FPS timeline simulator.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="./gta6-puddle-lab/">Launch Interactive Lab &rarr;</a>
+          <a class="btn btn-yt" href="https://youtu.be/j2P7taYN5ww" target="_blank" rel="noopener noreferrer">&#9654; Watch Episode #1</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="pill soon">EPISODE #2 // COMING SOON</span>
+        <h2>Temporal Upscaling &amp; Frame Generation Lab</h2>
+        <p>
+          Interactive motion-vector jitter, temporal accumulation, and optical-flow frame interpolation sandbox.
+        </p>
+      </article>
+    </section>
+
+    <footer>
+      Built by <strong>NextGen Systems Lab</strong> (<code>@nextgensystemslab</code>) &middot;
+      <a href="https://youtu.be/j2P7taYN5ww" target="_blank" rel="noopener noreferrer">Episode #1 (7:18)</a> &middot;
+      <a href="https://youtu.be/qaukQgnOY_A" target="_blank" rel="noopener noreferrer">SSR Puddle Short (51s)</a>
+    </footer>
+  </main>
+</body>
+</html>
